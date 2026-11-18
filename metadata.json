@@ -1,0 +1,10 @@
+{
+  "name": "MediQuick",
+  "description": "Every Medicine. One Platform. Instant normal and rare medicine discovery, cart, direct ordering, Razorpay/COD checkout, nearby pharmacy locator, and live delivery tracking.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

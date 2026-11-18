@@ -1,0 +1,566 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core identity & validation primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'rayeesajees@gmail.com'
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // Entity Validation Blueprints
+
+    function isValidMedicine(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'brand', 'category', 'price', 'imageUrl',
+          'stock', 'inStock', 'isRare', 'pharmacyId', 'pharmacyName', 'pharmacyOwnerUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'brand', 'genericName', 'category', 'price', 'mrp',
+          'packSize', 'dosageForm', 'imageUrl', 'description', 'stock',
+          'inStock', 'isRare', 'requiresColdChain', 'prescriptionOptional',
+          'pharmacyId', 'pharmacyName', 'pharmacyOwnerUid', 'etaMins'
+        ]) &&
+        isValidId(data.id) &&
+        isValidString(data.name, 2, 120) &&
+        isValidString(data.brand, 2, 80) &&
+        isValidString(data.category, 2, 60) &&
+        data.price is number && data.price > 0 &&
+        isValidString(data.imageUrl, 1, 300) &&
+        data.stock is int && data.stock >= 0 &&
+        data.inStock is bool &&
+        data.isRare is bool &&
+        isValidId(data.pharmacyId) &&
+        isValidString(data.pharmacyName, 2, 100) &&
+        isValidId(data.pharmacyOwnerUid) &&
+        (!('genericName' in data) || isValidString(data.genericName, 1, 120)) &&
+        (!('mrp' in data) || (data.mrp is number && data.mrp >= data.price)) &&
+        (!('packSize' in data) || isValidString(data.packSize, 1, 40)) &&
+        (!('dosageForm' in data) || isValidString(data.dosageForm, 1, 40)) &&
+        (!('description' in data) || isValidString(data.description, 1, 600)) &&
+        (!('requiresColdChain' in data) || data.requiresColdChain is bool) &&
+        (!('prescriptionOptional' in data) || data.prescriptionOptional is bool) &&
+        (!('etaMins' in data) || (data.etaMins is int && data.etaMins > 0 && data.etaMins <= 240));
+    }
+
+    function isValidPharmacy(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'address', 'lat', 'lng', 'phone',
+          'rating', 'open24x7', 'isRareSpecialist', 'deliveryTimeMins', 'ownerUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'address', 'lat', 'lng', 'phone',
+          'rating', 'open24x7', 'isRareSpecialist', 'deliveryTimeMins', 'ownerUid'
+        ]) &&
+        isValidId(data.id) &&
+        isValidString(data.name, 2, 100) &&
+        isValidString(data.address, 4, 240) &&
+        data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+        data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+        isValidString(data.phone, 6, 24) &&
+        data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+        data.open24x7 is bool &&
+        data.isRareSpecialist is bool &&
+        data.deliveryTimeMins is int && data.deliveryTimeMins > 0 && data.deliveryTimeMins <= 240 &&
+        isValidId(data.ownerUid);
+    }
+
+    function isValidDeliveryPartner(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'phone', 'vehicleType', 'plateNumber',
+          'currentLat', 'currentLng', 'available', 'ownerUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'phone', 'vehicleType', 'plateNumber',
+          'currentLat', 'currentLng', 'available', 'activeOrderId', 'ownerUid'
+        ]) &&
+        isValidId(data.id) &&
+        isValidString(data.name, 2, 80) &&
+        isValidString(data.phone, 6, 24) &&
+        isValidString(data.vehicleType, 2, 40) &&
+        isValidString(data.plateNumber, 2, 24) &&
+        data.currentLat is number && data.currentLat >= -90 && data.currentLat <= 90 &&
+        data.currentLng is number && data.currentLng >= -180 && data.currentLng <= 180 &&
+        data.available is bool &&
+        (!('activeOrderId' in data) || isValidString(data.activeOrderId, 0, 128)) &&
+        isValidId(data.ownerUid);
+    }
+
+    function isValidCart(data, userId) {
+      return data.keys().hasAll(['userId', 'itemCount', 'subtotal', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'itemCount', 'subtotal', 'updatedAt']) &&
+        data.userId == userId &&
+        isValidId(data.userId) &&
+        data.itemCount is int && data.itemCount >= 0 && data.itemCount <= 100 &&
+        data.subtotal is number && data.subtotal >= 0 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCartItem(data, userId) {
+      return data.keys().hasAll([
+          'medicineId', 'userId', 'name', 'brand', 'price', 'quantity',
+          'imageUrl', 'pharmacyId', 'pharmacyName', 'pharmacyOwnerUid', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'medicineId', 'userId', 'name', 'brand', 'price', 'quantity',
+          'imageUrl', 'packSize', 'isRare', 'pharmacyId', 'pharmacyName',
+          'pharmacyOwnerUid', 'updatedAt'
+        ]) &&
+        isValidId(data.medicineId) &&
+        data.userId == userId &&
+        isValidString(data.name, 2, 120) &&
+        isValidString(data.brand, 2, 80) &&
+        data.price is number && data.price > 0 &&
+        data.quantity is int && data.quantity >= 1 && data.quantity <= 25 &&
+        isValidString(data.imageUrl, 1, 300) &&
+        (!('packSize' in data) || isValidString(data.packSize, 1, 40)) &&
+        (!('isRare' in data) || data.isRare is bool) &&
+        isValidId(data.pharmacyId) &&
+        isValidString(data.pharmacyName, 2, 100) &&
+        isValidId(data.pharmacyOwnerUid) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'pharmacyId', 'pharmacyName', 'pharmacyLat', 'pharmacyLng', 'pharmacyOwnerUid',
+          'items', 'subtotal', 'deliveryFee', 'totalAmount',
+          'paymentMethod', 'paymentStatus', 'deliveryAddress', 'deliveryLat', 'deliveryLng',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderNumber', 'userId', 'customerName', 'customerPhone',
+          'pharmacyId', 'pharmacyName', 'pharmacyLat', 'pharmacyLng', 'pharmacyOwnerUid',
+          'items', 'subtotal', 'deliveryFee', 'totalAmount',
+          'paymentMethod', 'paymentStatus', 'razorpayOrderId', 'razorpayPaymentId',
+          'deliveryAddress', 'deliveryLat', 'deliveryLng',
+          'status', 'rejectionReason', 'partnerId', 'partnerName', 'partnerPhone',
+          'partnerOwnerUid', 'partnerLat', 'partnerLng', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidString(data.orderNumber, 4, 32) &&
+        data.orderNumber.matches('^[A-Z0-9\\-]+$') &&
+        isValidId(data.userId) &&
+        isValidString(data.customerName, 1, 100) &&
+        isValidString(data.customerPhone, 6, 24) &&
+        isValidId(data.pharmacyId) &&
+        isValidString(data.pharmacyName, 2, 100) &&
+        data.pharmacyLat is number && data.pharmacyLng is number &&
+        isValidId(data.pharmacyOwnerUid) &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 30 &&
+        data.items[0] is map &&
+        data.subtotal is number && data.subtotal > 0 &&
+        data.deliveryFee is number && data.deliveryFee >= 0 &&
+        data.totalAmount is number && data.totalAmount > 0 &&
+        data.paymentMethod in ['COD', 'RAZORPAY'] &&
+        data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'REFUNDED'] &&
+        isValidString(data.deliveryAddress, 4, 280) &&
+        data.deliveryLat is number && data.deliveryLat >= -90 && data.deliveryLat <= 90 &&
+        data.deliveryLng is number && data.deliveryLng >= -180 && data.deliveryLng <= 180 &&
+        data.status in ['PLACED', 'ACCEPTED', 'REJECTED', 'PARTNER_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] &&
+        (!('razorpayOrderId' in data) || isValidString(data.razorpayOrderId, 0, 128)) &&
+        (!('razorpayPaymentId' in data) || isValidString(data.razorpayPaymentId, 0, 128)) &&
+        (!('rejectionReason' in data) || isValidString(data.rejectionReason, 0, 240)) &&
+        (!('partnerId' in data) || isValidString(data.partnerId, 0, 128)) &&
+        (!('partnerName' in data) || isValidString(data.partnerName, 0, 80)) &&
+        (!('partnerPhone' in data) || isValidString(data.partnerPhone, 0, 24)) &&
+        (!('partnerOwnerUid' in data) || isValidString(data.partnerOwnerUid, 0, 128)) &&
+        (!('partnerLat' in data) || data.partnerLat is number) &&
+        (!('partnerLng' in data) || data.partnerLng is number) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll([
+          'orderId', 'orderNumber', 'userId', 'amount', 'currency',
+          'method', 'status', 'verified', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderId', 'orderNumber', 'userId', 'amount', 'currency',
+          'method', 'status', 'razorpayOrderId', 'razorpayPaymentId',
+          'razorpaySignature', 'verified', 'createdAt'
+        ]) &&
+        isValidId(data.orderId) &&
+        isValidString(data.orderNumber, 4, 32) &&
+        isValidId(data.userId) &&
+        data.amount is number && data.amount > 0 &&
+        isValidString(data.currency, 3, 6) &&
+        data.method in ['COD', 'RAZORPAY'] &&
+        data.status in ['PENDING', 'VERIFIED', 'FAILED', 'REFUNDED'] &&
+        (!('razorpayOrderId' in data) || isValidString(data.razorpayOrderId, 0, 128)) &&
+        (!('razorpayPaymentId' in data) || isValidString(data.razorpayPaymentId, 0, 128)) &&
+        (!('razorpaySignature' in data) || isValidString(data.razorpaySignature, 0, 256)) &&
+        data.verified is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'title', 'message', 'type', 'orderId', 'read', 'createdAt']) &&
+        isValidId(data.userId) &&
+        isValidString(data.title, 2, 120) &&
+        isValidString(data.message, 2, 400) &&
+        data.type in ['ORDER_PLACED', 'ORDER_ACCEPTED', 'ORDER_REJECTED', 'DELIVERY_UPDATE', 'EMERGENCY', 'HUNTER'] &&
+        (!('orderId' in data) || isValidString(data.orderId, 0, 128)) &&
+        data.read is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'photoURL', 'updatedAt']) &&
+        data.uid == userId &&
+        isValidId(data.uid) &&
+        isValidString(data.displayName, 1, 100) &&
+        (!('email' in data) || isValidString(data.email, 0, 160)) &&
+        (!('phone' in data) || isValidString(data.phone, 0, 24)) &&
+        (!('photoURL' in data) || isValidString(data.photoURL, 0, 400)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSavedAddress(data, userId) {
+      return data.keys().hasAll(['userId', 'label', 'addressLine', 'lat', 'lng', 'isDefault', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'label', 'addressLine', 'landmark', 'lat', 'lng', 'isDefault', 'createdAt']) &&
+        data.userId == userId &&
+        isValidString(data.label, 1, 40) &&
+        isValidString(data.addressLine, 4, 280) &&
+        (!('landmark' in data) || isValidString(data.landmark, 0, 120)) &&
+        data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+        data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+        data.isDefault is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidEmergencyRequest(data) {
+      return data.keys().hasAll([
+          'userId', 'patientName', 'contactPhone', 'medicineName',
+          'urgency', 'deliveryAddress', 'lat', 'lng', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'patientName', 'contactPhone', 'medicineName', 'dosageNotes',
+          'urgency', 'deliveryAddress', 'lat', 'lng', 'status', 'createdAt'
+        ]) &&
+        isValidId(data.userId) &&
+        isValidString(data.patientName, 2, 100) &&
+        isValidString(data.contactPhone, 6, 24) &&
+        isValidString(data.medicineName, 2, 140) &&
+        (!('dosageNotes' in data) || isValidString(data.dosageNotes, 0, 300)) &&
+        data.urgency in ['CRITICAL_15MIN', 'URGENT_30MIN'] &&
+        isValidString(data.deliveryAddress, 4, 280) &&
+        data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+        data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+        data.status in ['BROADCASTED', 'PHARMACY_RESPONDED', 'DISPATCHED', 'RESOLVED'] &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidMedicineHunterRequest(data) {
+      return data.keys().hasAll([
+          'userId', 'medicineQuery', 'quantityNeeded', 'cityOrArea', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'medicineQuery', 'moleculeOrBrand', 'quantityNeeded',
+          'cityOrArea', 'notes', 'status', 'locatedPharmacy', 'createdAt'
+        ]) &&
+        isValidId(data.userId) &&
+        isValidString(data.medicineQuery, 2, 140) &&
+        (!('moleculeOrBrand' in data) || isValidString(data.moleculeOrBrand, 0, 120)) &&
+        isValidString(data.quantityNeeded, 1, 40) &&
+        isValidString(data.cityOrArea, 2, 120) &&
+        (!('notes' in data) || isValidString(data.notes, 0, 400)) &&
+        data.status in ['SEARCHING', 'LOCATED', 'CONFIRMED', 'CLOSED'] &&
+        (!('locatedPharmacy' in data) || isValidString(data.locatedPharmacy, 0, 120)) &&
+        data.createdAt is timestamp;
+    }
+
+    // Storefront Medicines (public catalog, verified pharmacy owner / admin can write)
+    match /medicines/{medicineId} {
+      allow get: if isValidId(medicineId);
+      allow list: if resource.data.inStock == true;
+      allow create: if isVerified() && isValidId(medicineId) && isValidMedicine(incoming()) &&
+        (incoming().pharmacyOwnerUid == request.auth.uid || isAdmin());
+      allow update: if isVerified() && isValidId(medicineId) && isValidMedicine(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().pharmacyOwnerUid == existing().pharmacyOwnerUid &&
+        (existing().pharmacyOwnerUid == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'inStock', 'price']);
+      allow delete: if isAdmin();
+    }
+
+    // Nearby Pharmacies (public discovery, owner/admin write)
+    match /pharmacies/{pharmacyId} {
+      allow get: if isValidId(pharmacyId);
+      allow list: if resource.data.rating >= 0;
+      allow create: if isVerified() && isValidId(pharmacyId) && isValidPharmacy(incoming()) &&
+        (incoming().ownerUid == request.auth.uid || isAdmin());
+      allow update: if isVerified() && isValidId(pharmacyId) && isValidPharmacy(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        (existing().ownerUid == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['deliveryTimeMins', 'open24x7', 'rating']);
+      allow delete: if isAdmin();
+    }
+
+    // Delivery Partners
+    match /deliveryPartners/{partnerId} {
+      allow get: if isSignedIn() && isValidId(partnerId);
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || resource.data.available == true || isAdmin());
+      allow create: if isVerified() && isValidId(partnerId) && isValidDeliveryPartner(incoming()) &&
+        (incoming().ownerUid == request.auth.uid || isAdmin());
+      allow update: if isVerified() && isValidId(partnerId) && isValidDeliveryPartner(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        (existing().ownerUid == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['currentLat', 'currentLng', 'available', 'activeOrderId']);
+      allow delete: if isAdmin();
+    }
+
+    // Shopping Cart (owner-isolated)
+    match /carts/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(userId) && isOwner(userId) && isValidCart(incoming(), userId) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isOwner(userId) && isValidCart(incoming(), userId) &&
+        incoming().userId == existing().userId &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['itemCount', 'subtotal', 'updatedAt']);
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      match /items/{itemId} {
+        allow get: if isValidId(userId) && isValidId(itemId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(userId) && isValidId(itemId) && isOwner(userId) &&
+          isValidCartItem(incoming(), userId) &&
+          incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(itemId) && isOwner(userId) &&
+          isValidCartItem(incoming(), userId) &&
+          incoming().medicineId == existing().medicineId &&
+          incoming().userId == existing().userId &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(itemId) && isOwner(userId);
+      }
+    }
+
+    // Direct Orders (customer, pharmacy operator, and delivery partner tiered access)
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (
+        existing().userId == request.auth.uid ||
+        existing().pharmacyOwnerUid == request.auth.uid ||
+        existing().partnerOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.pharmacyOwnerUid == request.auth.uid ||
+        resource.data.partnerOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerified() && isValidId(orderId) && isValidOrder(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'PLACED' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/pharmacies/$(incoming().pharmacyId));
+
+      allow update: if isVerified() && isValidId(orderId) && isValidOrder(incoming()) &&
+        incoming().orderNumber == existing().orderNumber &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            !(existing().status in ['DELIVERED', 'CANCELLED']) && (
+              // Tier 1: Customer can cancel or reassign after pharmacy rejection
+              (
+                existing().userId == request.auth.uid && (
+                  (
+                    incoming().status == 'CANCELLED' &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentStatus', 'updatedAt'])
+                  ) ||
+                  (
+                    existing().status == 'REJECTED' &&
+                    incoming().status == 'PLACED' &&
+                    exists(/databases/$(database)/documents/pharmacies/$(incoming().pharmacyId)) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'pharmacyId', 'pharmacyName', 'pharmacyLat', 'pharmacyLng',
+                      'pharmacyOwnerUid', 'status', 'rejectionReason', 'updatedAt'
+                    ])
+                  )
+                )
+              ) ||
+              // Tier 2: Pharmacy operator can accept, reject, or assign delivery partner
+              (
+                existing().pharmacyOwnerUid == request.auth.uid && (
+                  (
+                    existing().status == 'PLACED' &&
+                    incoming().status in ['ACCEPTED', 'REJECTED'] &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt'])
+                  ) ||
+                  (
+                    existing().status == 'ACCEPTED' &&
+                    incoming().status == 'PARTNER_ASSIGNED' &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'status', 'partnerId', 'partnerName', 'partnerPhone',
+                      'partnerOwnerUid', 'partnerLat', 'partnerLng', 'updatedAt'
+                    ])
+                  )
+                )
+              ) ||
+              // Tier 3: Delivery partner updates live coordinates and transit status
+              (
+                existing().partnerOwnerUid == request.auth.uid &&
+                existing().status in ['PARTNER_ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY'] &&
+                incoming().status in ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'] &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['status', 'partnerLat', 'partnerLng', 'paymentStatus', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    // Verified Payments Ledger
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && isValidId(paymentId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(paymentId) && isValidPayment(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        existsAfter(/databases/$(database)/documents/orders/$(incoming().orderId));
+      allow update: if isAdmin() && isValidId(paymentId) && isValidPayment(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // Real-Time Notifications
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(notificationId) && isValidNotification(incoming()) &&
+        incoming().createdAt == request.time && (
+          incoming().userId == request.auth.uid ||
+          isAdmin() ||
+          (
+            'orderId' in incoming() &&
+            isValidId(incoming().orderId) &&
+            exists(/databases/$(database)/documents/orders/$(incoming().orderId)) &&
+            (
+              get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.pharmacyOwnerUid == request.auth.uid ||
+              get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.partnerOwnerUid == request.auth.uid
+            )
+          )
+        );
+      allow update: if isVerified() && isValidId(notificationId) && isValidNotification(incoming()) &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isVerified() && isValidId(notificationId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // User Profiles & Saved Addresses (PII strictly owner-only)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming(), userId) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'phone', 'photoURL', 'updatedAt']);
+      allow delete: if isAdmin();
+
+      match /addresses/{addressId} {
+        allow get: if isValidId(userId) && isValidId(addressId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+        allow create: if isValidId(userId) && isValidId(addressId) && isOwner(userId) &&
+          isValidSavedAddress(incoming(), userId) &&
+          incoming().createdAt == request.time;
+        allow update: if isValidId(userId) && isValidId(addressId) && isOwner(userId) &&
+          isValidSavedAddress(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['label', 'addressLine', 'landmark', 'lat', 'lng', 'isDefault']);
+        allow delete: if isValidId(userId) && isValidId(addressId) && isOwner(userId);
+      }
+    }
+
+    // Separate Emergency Medicine Requests
+    match /emergencyRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(requestId) && isValidEmergencyRequest(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'BROADCASTED' &&
+        incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(requestId) && isValidEmergencyRequest(incoming()) &&
+        (existing().userId == request.auth.uid || isAdmin()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin();
+    }
+
+    // Separate Medicine Hunter (Rare Medicine Search) Requests
+    match /medicineHunterRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && isValidId(requestId) && isValidMedicineHunterRequest(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'SEARCHING' &&
+        incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(requestId) && isValidMedicineHunterRequest(incoming()) &&
+        (existing().userId == request.auth.uid || isAdmin()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'locatedPharmacy']);
+      allow delete: if isAdmin();
+    }
+
+    // Admin registry
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    // Connectivity test document
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+  }
+}

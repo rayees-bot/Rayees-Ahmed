@@ -1,0 +1,302 @@
+{
+  "entities": {
+    "Medicine": {
+      "title": "Medicine",
+      "description": "Available normal and rare medicine catalog item stocked by a partner pharmacy.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "brand": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "genericName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "category": {
+          "type": "string",
+          "enum": ["Pain & Fever", "Antibiotics", "Respiratory", "Diabetes & Insulin", "Cardiac & BP", "Rare & Biologics", "Vitamins & Immunity", "First Aid"]
+        },
+        "price": { "type": "number" },
+        "mrp": { "type": "number" },
+        "packSize": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "dosageForm": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "imageUrl": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "description": { "type": "string", "minLength": 4, "maxLength": 600 },
+        "stock": { "type": "integer" },
+        "inStock": { "type": "boolean" },
+        "isRare": { "type": "boolean" },
+        "requiresColdChain": { "type": "boolean" },
+        "prescriptionOptional": { "type": "boolean" },
+        "pharmacyId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pharmacyName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "pharmacyOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "etaMins": { "type": "integer" }
+      },
+      "required": ["id", "name", "brand", "category", "price", "imageUrl", "stock", "inStock", "isRare", "pharmacyId", "pharmacyName", "pharmacyOwnerUid"]
+    },
+    "Pharmacy": {
+      "title": "Pharmacy",
+      "description": "Nearby partner pharmacy with coordinates and fulfillment metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "address": { "type": "string", "minLength": 4, "maxLength": 240 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 24 },
+        "rating": { "type": "number" },
+        "open24x7": { "type": "boolean" },
+        "isRareSpecialist": { "type": "boolean" },
+        "deliveryTimeMins": { "type": "integer" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["id", "name", "address", "lat", "lng", "phone", "rating", "open24x7", "isRareSpecialist", "deliveryTimeMins", "ownerUid"]
+    },
+    "DeliveryPartner": {
+      "title": "DeliveryPartner",
+      "description": "Delivery rider available for real-time medicine dispatch and live tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 24 },
+        "vehicleType": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "plateNumber": { "type": "string", "minLength": 2, "maxLength": 24 },
+        "currentLat": { "type": "number" },
+        "currentLng": { "type": "number" },
+        "available": { "type": "boolean" },
+        "activeOrderId": { "type": "string", "maxLength": 128 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["id", "name", "phone", "vehicleType", "plateNumber", "currentLat", "currentLng", "available", "ownerUid"]
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User shopping cart summary document.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "itemCount": { "type": "integer" },
+        "subtotal": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "itemCount", "subtotal", "updatedAt"]
+    },
+    "CartItem": {
+      "title": "CartItem",
+      "description": "Individual medicine line item inside a user cart.",
+      "type": "object",
+      "properties": {
+        "medicineId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "brand": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "price": { "type": "number" },
+        "quantity": { "type": "integer" },
+        "imageUrl": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "packSize": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "isRare": { "type": "boolean" },
+        "pharmacyId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pharmacyName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "pharmacyOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["medicineId", "userId", "name", "brand", "price", "quantity", "imageUrl", "pharmacyId", "pharmacyName", "pharmacyOwnerUid", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Direct customer medicine order routed immediately to pharmacy and tracked to delivery.",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^[A-Z0-9\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "customerPhone": { "type": "string", "minLength": 6, "maxLength": 24 },
+        "pharmacyId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pharmacyName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "pharmacyLat": { "type": "number" },
+        "pharmacyLng": { "type": "number" },
+        "pharmacyOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["COD", "RAZORPAY"] },
+        "paymentStatus": { "type": "string", "enum": ["PENDING", "PAID", "FAILED", "REFUNDED"] },
+        "razorpayOrderId": { "type": "string", "maxLength": 128 },
+        "razorpayPaymentId": { "type": "string", "maxLength": 128 },
+        "deliveryAddress": { "type": "string", "minLength": 4, "maxLength": 280 },
+        "deliveryLat": { "type": "number" },
+        "deliveryLng": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["PLACED", "ACCEPTED", "REJECTED", "PARTNER_ASSIGNED", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"]
+        },
+        "rejectionReason": { "type": "string", "maxLength": 240 },
+        "partnerId": { "type": "string", "maxLength": 128 },
+        "partnerName": { "type": "string", "maxLength": 80 },
+        "partnerPhone": { "type": "string", "maxLength": 24 },
+        "partnerOwnerUid": { "type": "string", "maxLength": 128 },
+        "partnerLat": { "type": "number" },
+        "partnerLng": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderNumber", "userId", "customerName", "customerPhone", "pharmacyId", "pharmacyName",
+        "pharmacyLat", "pharmacyLng", "pharmacyOwnerUid", "items", "subtotal", "deliveryFee",
+        "totalAmount", "paymentMethod", "paymentStatus", "deliveryAddress", "deliveryLat",
+        "deliveryLng", "status", "createdAt", "updatedAt"
+      ]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Verified Razorpay or Cash-on-Delivery payment ledger entry.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderNumber": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "minLength": 3, "maxLength": 6 },
+        "method": { "type": "string", "enum": ["COD", "RAZORPAY"] },
+        "status": { "type": "string", "enum": ["PENDING", "VERIFIED", "FAILED", "REFUNDED"] },
+        "razorpayOrderId": { "type": "string", "maxLength": 128 },
+        "razorpayPaymentId": { "type": "string", "maxLength": 128 },
+        "razorpaySignature": { "type": "string", "maxLength": 256 },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "orderNumber", "userId", "amount", "currency", "method", "status", "verified", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time notification for order acceptance, rejection, dispatch, and requests.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "message": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "type": { "type": "string", "enum": ["ORDER_PLACED", "ORDER_ACCEPTED", "ORDER_REJECTED", "DELIVERY_UPDATE", "EMERGENCY", "HUNTER"] },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "read", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private customer profile containing PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 24 },
+        "photoURL": { "type": "string", "maxLength": 400 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "updatedAt"]
+    },
+    "SavedAddress": {
+      "title": "SavedAddress",
+      "description": "User saved delivery address with coordinates.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "addressLine": { "type": "string", "minLength": 4, "maxLength": 280 },
+        "landmark": { "type": "string", "maxLength": 120 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "label", "addressLine", "lat", "lng", "isDefault", "createdAt"]
+    },
+    "EmergencyRequest": {
+      "title": "EmergencyRequest",
+      "description": "Separate urgent emergency medicine dispatch request.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "contactPhone": { "type": "string", "minLength": 6, "maxLength": 24 },
+        "medicineName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "dosageNotes": { "type": "string", "maxLength": 300 },
+        "urgency": { "type": "string", "enum": ["CRITICAL_15MIN", "URGENT_30MIN"] },
+        "deliveryAddress": { "type": "string", "minLength": 4, "maxLength": 280 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["BROADCASTED", "PHARMACY_RESPONDED", "DISPATCHED", "RESOLVED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "patientName", "contactPhone", "medicineName", "urgency", "deliveryAddress", "lat", "lng", "status", "createdAt"]
+    },
+    "MedicineHunterRequest": {
+      "title": "MedicineHunterRequest",
+      "description": "Separate rare/orphan medicine sourcing request via Medicine Hunter network.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "medicineQuery": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "moleculeOrBrand": { "type": "string", "maxLength": 120 },
+        "quantityNeeded": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "cityOrArea": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "notes": { "type": "string", "maxLength": 400 },
+        "status": { "type": "string", "enum": ["SEARCHING", "LOCATED", "CONFIRMED", "CLOSED"] },
+        "locatedPharmacy": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "medicineQuery", "quantityNeeded", "cityOrArea", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/medicines/{medicineId}": {
+      "schema": { "$ref": "#/entities/Medicine" },
+      "description": "Storefront catalog of available normal and rare medicines."
+    },
+    "/pharmacies/{pharmacyId}": {
+      "schema": { "$ref": "#/entities/Pharmacy" },
+      "description": "Partner pharmacies shown on map and assigned to orders."
+    },
+    "/deliveryPartners/{partnerId}": {
+      "schema": { "$ref": "#/entities/DeliveryPartner" },
+      "description": "Delivery partners handling live last-mile dispatch."
+    },
+    "/carts/{userId}": {
+      "schema": { "$ref": "#/entities/Cart" },
+      "description": "User shopping cart summary header."
+    },
+    "/carts/{userId}/items/{itemId}": {
+      "schema": { "$ref": "#/entities/CartItem" },
+      "description": "Medicine items in a user's persistent shopping cart."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Direct customer orders routed to pharmacies and tracked in real time."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment verification records for COD and Razorpay transactions."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User-scoped notifications for orders, emergencies, and hunter updates."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only user profile document containing PII."
+    },
+    "/users/{userId}/addresses/{addressId}": {
+      "schema": { "$ref": "#/entities/SavedAddress" },
+      "description": "Owner-only saved delivery addresses."
+    },
+    "/emergencyRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/EmergencyRequest" },
+      "description": "Dedicated emergency medicine dispatch requests."
+    },
+    "/medicineHunterRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/MedicineHunterRequest" },
+      "description": "Dedicated rare medicine sourcing hunter requests."
+    }
+  }
+}
