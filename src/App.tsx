@@ -149,7 +149,7 @@ export default function App() {
   useEffect(() => {
     const onQuota = () => setMapsQuotaExceeded(true);
     window.addEventListener('gmp-quota-exceeded', onQuota);
-    if (!mapsApiKey) {
+    if (!mapsApiKey && window.location.protocol !== 'file:') {
       fetch('/api/config')
         .then((r) => r.json())
         .then((data: { mapsApiKey?: string }) => {

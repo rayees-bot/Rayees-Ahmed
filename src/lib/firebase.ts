@@ -76,6 +76,11 @@ export async function testConnection(): Promise<boolean> {
 }
 
 export async function signInWithGoogle() {
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    throw new Error(
+      'Google Sign-In requires running MediQuick on http://localhost:3000 (npm run dev) or the hosted web URL.',
+    );
+  }
   return signInWithPopup(auth, googleProvider);
 }
 
